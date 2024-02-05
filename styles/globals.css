@@ -9,4 +9,7 @@
     .user-avatar {
         @apply rounded-sm shadow-md shadow-black/50
     }
+    .side-list-item {
+        @apply rounded-md flex items-center m-2 p-2 gap-4 hover:bg-gray-500
+    }
 }
