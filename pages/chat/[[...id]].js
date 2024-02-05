@@ -15,7 +15,29 @@ export default function ChatPage({ chatId, title, messages }) {
   const [newChatMessages, setNewChatMessages] = useState([]);
   const [generatingResponse, setGeneratingResponse] = useState(false);
   const [newChatId, setNewChatId] = useState();
+  const [fullMessage, setFullMessage] = useState();
   const router = useRouter();
+
+    // when our route changes
+    useEffect(() => {
+      setNewChatMessages([]);
+      setNewChatId(null);
+    }, [chatId]);
+    
+  // save the newly streamed message to new chat messages
+  useEffect(() => {
+    if (!generatingResponse && fullMessage) {
+      setNewChatMessages((prev) => [
+        ...prev,
+        {
+          _id: uuid(),
+          role: "assistant",
+          content: fullMessage,
+        },
+      ]);
+      setFullMessage("");
+    }
+  }, [generatingResponse, fullMessage]);
 
   useEffect(() => {
     if (!generatingResponse && newChatId) {
@@ -52,6 +74,8 @@ export default function ChatPage({ chatId, title, messages }) {
       console.log("ERROR!");
       return;
     }
+    let content = "";
+
     await streamReader(data.getReader(), (messageChunk) => {
       console.log(messageChunk);
       if (messageChunk.event === "newChatId") {
@@ -60,8 +84,11 @@ export default function ChatPage({ chatId, title, messages }) {
         setIncomingResponse(
           (prevMessage) => `${prevMessage} ${messageChunk.content}`
         );
+        content = content + messageChunk.content;
       }
     });
+    setFullMessage(content);
+    setIncomingResponse("");
     setGeneratingResponse(false);
   };
 
@@ -119,10 +146,9 @@ export const getServerSideProps = async (ctx) => {
   try {
     objectId = new ObjectId(propChatId);
   } catch (e) {
-    // res.status(422).json({
-    //   message: "Invalid chat ID",
-    // });
-    return;
+    res.status(422).json({
+      message: "Invalid chat ID",
+    });
   }
 
   const chat = await db.collection("chats").findOne({

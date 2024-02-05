@@ -6,7 +6,7 @@ export const config = {
 
 export default async function handler(req) {
   try {
-    const { chatIdFromParam, message } = await req.json();
+    const { chatId: chatIdFromParam, message } = await req.json();
 
     // validate data
     if (!message || typeof message !== "string" || message.length > 200) {
@@ -20,27 +20,54 @@ export default async function handler(req) {
       );
     }
 
+    let chatId = chatIdFromParam;
+    let newChatId;
+    let chatMessages = [];
+
     const initialChatMessage = {
       role: "system",
       content:
         "Your name is Chatty. An incredible intelligent AI. You were created by Abdul Mujeeb. Your response must be formatted as markdown.",
     };
 
-    const response = await fetch(
-      `${req.headers.get("origin")}/api/chat/createNewChat`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: req.headers.get("cookie"),
-        },
-        body: JSON.stringify({
-          message,
-        }),
-      }
-    );
-    const json = await response.json();
-    const chatId = json._id;
+    if (chatId) {
+      const response = await fetch(
+        `${req.headers.get("origin")}/api/chat/addMessageToChat`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: req.headers.get("cookie"),
+          },
+          body: JSON.stringify({
+            chatId,
+            role: "user",
+            content: message,
+          }),
+        }
+      );
+      const json = await response.json();
+      chatMessages = json.chat.messages || [];
+    } else {
+      const response = await fetch(
+        `${req.headers.get("origin")}/api/chat/createNewChat`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: req.headers.get("cookie"),
+          },
+          body: JSON.stringify({
+            message,
+          }),
+        }
+      );
+      const json = await response.json();
+      chatId = json._id;
+      newChatId = json._id;
+      chatMessages = json.messages || [];
+    }
+
     const stream = await OpenAIEdgeStream(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -80,6 +107,11 @@ export default async function handler(req) {
     );
     return new Response(stream);
   } catch (error) {
-    console.log("ERROR -> SENDING MESSAGE", error.message);
+    return new Response(
+      { message: "An Error occured in send message endpoint" },
+      {
+        status: 500,
+      }
+    );
   }
 }
